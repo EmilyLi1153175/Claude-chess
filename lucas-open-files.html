@@ -1,0 +1,340 @@
+<title>Lucas's Open-File Puzzles</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
+<style>
+/* Layout: coach column beside a big tappable board; puzzle picker strip on top. Stacks on phones. */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#1d2a33; --muted:#5d6d78; --line:#d9e0e5;
+  --sq-light:#e9dfc8; --sq-dark:#7f98a6; --accent:#e8742c; --accent-ink:#ffffff;
+  --good:#2f8f5b; --good-bg:#e3f4ea; --bad:#c2453a; --bad-bg:#fbe6e3; --hint-bg:#fff2dc;
+  --sel:rgba(232,116,44,.55); --last:rgba(246,205,70,.55); --dot:rgba(29,42,51,.35);
+  --display:"Fredoka","Trebuchet MS",system-ui,sans-serif;
+  --body:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141b21; --panel:#1d262e; --ink:#e7edf1; --muted:#9aaab5; --line:#2e3a44;
+  --sq-light:#c9bfa8; --sq-dark:#5e7684; --accent:#f08a46; --accent-ink:#1a1206;
+  --good:#5cc68c; --good-bg:#183324; --bad:#ec7a6f; --bad-bg:#3a1d1a; --hint-bg:#3a2d17;
+  --dot:rgba(20,27,33,.45); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141b21; --panel:#1d262e; --ink:#e7edf1; --muted:#9aaab5; --line:#2e3a44;
+  --sq-light:#c9bfa8; --sq-dark:#5e7684; --accent:#f08a46; --accent-ink:#1a1206;
+  --good:#5cc68c; --good-bg:#183324; --bad:#ec7a6f; --bad-bg:#3a1d1a; --hint-bg:#3a2d17;
+  --dot:rgba(20,27,33,.45); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header h1{font-family:var(--display);font-weight:600;font-size:clamp(1.6rem,4vw,2.2rem);margin:0;text-wrap:balance}
+header p{margin:2px 0 0;color:var(--muted)}
+.picker{display:flex;flex-wrap:wrap;gap:8px}
+.pk{font:600 .95rem var(--body);border:1.5px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:10px;padding:6px 10px;cursor:pointer;display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.pk .side{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--ink)}
+.pk .side.w{background:#fff}.pk .side.b{background:#222}
+.pk .st{color:var(--accent);letter-spacing:-1px;font-size:.85rem}
+.pk[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.pk:focus-visible,.btn:focus-visible,.sq:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:760px){.main{grid-template-columns:1fr}}
+.boardbox{display:flex;flex-direction:column;gap:6px}
+.board{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));aspect-ratio:1;width:100%;max-width:100%;
+  border:6px solid var(--ink);border-radius:6px;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.sq{position:relative;min-width:0;min-height:0;aspect-ratio:1;display:flex;align-items:center;justify-content:center;cursor:pointer;border:0;padding:0;margin:0}
+.sq.l{background:var(--sq-light)}.sq.d{background:var(--sq-dark)}
+.sq.last::before,.sq.sel::before,.sq.hintsq::before{content:"";position:absolute;inset:0}
+.sq.last::before{background:var(--last)}
+.sq.sel::before{background:var(--sel)}
+.sq.hintsq::before{box-shadow:inset 0 0 0 4px var(--accent);animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:inset 0 0 0 8px var(--accent)}}
+.sq.tgt::after{content:"";position:absolute;width:30%;height:30%;border-radius:50%;background:var(--dot)}
+.sq.tgt.cap::after{width:88%;height:88%;background:none;border:5px solid var(--dot)}
+.pc{position:relative;z-index:1;font-size:min(9.2vw,52px);line-height:1;font-family:"Segoe UI Symbol","Apple Symbols","DejaVu Sans","Noto Sans Symbols2",sans-serif}
+.pc.w{color:#fff;-webkit-text-stroke:1.4px #1b1b1b;paint-order:stroke fill;text-shadow:0 1px 0 rgba(0,0,0,.25)}
+.pc.b{color:#161616;text-shadow:0 0 1px #fff}
+.sq .rk,.sq .fl{position:absolute;font:700 10px var(--body);opacity:.7;color:var(--ink);z-index:2}
+.sq .rk{top:2px;left:3px}.sq .fl{bottom:1px;right:3px}
+.sq.l .rk,.sq.l .fl{color:#4d5e68}.sq.d .rk,.sq.d .fl{color:#f4efe2}
+.tomove{display:flex;align-items:center;gap:8px;font-weight:700}
+.tomove .side{width:16px;height:16px;border-radius:50%;border:2px solid var(--ink)}
+.coach{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.coach h2{font-family:var(--display);font-weight:600;font-size:1.35rem;margin:0}
+.eyebrow{font:700 .75rem var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.msg{border-radius:10px;padding:12px 14px;background:var(--bg)}
+.msg.good{background:var(--good-bg);border-left:4px solid var(--good)}
+.msg.bad{background:var(--bad-bg);border-left:4px solid var(--bad)}
+.msg.hint{background:var(--hint-bg);border-left:4px solid var(--accent)}
+.msg b.mv{font-family:var(--display);font-weight:600}
+.moves{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.95rem;min-height:1.5em}
+.moves span.u{color:var(--ink);font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:700 .95rem var(--body);border-radius:10px;padding:9px 14px;cursor:pointer;border:1.5px solid var(--line);background:var(--panel);color:var(--ink)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.idea{font-size:.92rem;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+.idea strong{color:var(--ink)}
+.score{font-family:var(--display);font-size:1rem;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.sq.hintsq::before{animation:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Opening Files with Lucas</h1>
+    <p>Workbook page 101 · Chapter 21b, opening a file (开线). Tap a piece, then tap where it goes.</p>
+  </header>
+
+  <nav class="picker" id="picker" aria-label="Choose a puzzle"></nav>
+
+  <div class="main">
+    <div class="boardbox">
+      <div class="board" id="board" role="grid" aria-label="Chess board"></div>
+      <div class="tomove" id="tomove"></div>
+    </div>
+
+    <section class="coach" aria-live="polite">
+      <div>
+        <div class="eyebrow" id="eyebrow"></div>
+        <h2 id="title"></h2>
+      </div>
+      <div class="msg" id="msg"></div>
+      <div class="moves" id="moves"></div>
+      <div class="btns">
+        <button class="btn" id="hintBtn" type="button">Hint</button>
+        <button class="btn" id="showBtn" type="button">Show me</button>
+        <button class="btn" id="resetBtn" type="button">Try again</button>
+        <button class="btn pri" id="nextBtn" type="button">Next puzzle →</button>
+      </div>
+      <div class="idea"><strong>What is "opening a file"?</strong> A file is a column on the board (the a-file, the b-file…). Rooks and queens love open files. Sometimes you give up a piece to knock a pawn out of the way, so your rook or queen can rush down the file at the enemy king or queen.</div>
+      <div class="score" id="score"></div>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+/* Each line: user moves and the opponent's replies (all checked with Stockfish).
+   say = what the coach says after Lucas plays that move. alts = moves that also work but miss the idea. */
+const P=[
+{n:"21b-1",fen:"3rr2k/1ppbq1p1/p1nb3p/3Bpp2/P3P3/2P1BN1P/1P1RQPP1/3R2K1 w - - 0 1",
+ h1:"Black's queen on e7 and rook on d8 sit on one diagonal line. One of your bishops can hit them both.",
+ h2:"Move the bishop on e3.",
+ line:[["Bg5","The bishop attacks the queen, with the rook on d8 behind it. Taking it pulls the h6-pawn away from guarding g5."],["hxg5"],
+  ["Nxe5","The knight grabs the e5-pawn. Now it can jump to g6 with check."],["g4"],
+  ["Ng6+","Fork! Check on the king and attack on the queen at the same time."],["Kh7"],
+  ["Nxe7","You win Black's queen."]],
+ end:"1.Bg5! hxg5 2.Nxe5 and 3.Ng6+ wins the queen. If Black doesn't take the bishop (1...Qf8), then 2.Nh4! Kh7 3.Bxd8 wins the rook instead."},
+{n:"21b-2",fen:"1k1rr3/p1p3p1/1p1q1p2/8/QPPp4/5B2/4nPPP/1R3R1K w - - 0 1",
+ h1:"Look at the a-file. Only one black pawn stands on it, right next to Black's king.",
+ h2:"Your queen can capture on a7 with check.",
+ line:[["Qxa7+","Queen sacrifice! The a7-pawn is gone and the a-file is wide open."],["Kxa7"],
+  ["Ra1+","Your rook jumps onto the open a-file."],["Kb8"],
+  ["Ra8#","Checkmate! Your bishop on f3 guards b7, so the king has nowhere to go."]],
+ end:"1.Qxa7+! Kxa7 2.Ra1+ Kb8 3.Ra8#. If Black runs with 1...Kc8 instead, 2.Bg4+ keeps the attack going and White wins."},
+{n:"21b-2",fen:"1k1rr3/p1p3p1/1p1q1p2/8/QPPp4/5B2/4nPPP/1R3R1K b - - 0 1",
+ h1:"White's king is on h1. The h2-pawn is the only thing guarding the h-file.",
+ h2:"Your queen can capture on h2 with check.",
+ line:[["Qxh2+","Queen sacrifice! White must take, and now the h-file is open."],["Kxh2"],
+  ["Rh8+","Your rook slides along the back rank to the open h-file."],["Bh5"],
+  ["Rxh5#","Checkmate! Your knight on e2 guards g1, so the king is stuck."]],
+ end:"1...Qxh2+! 2.Kxh2 Rh8+ 3.Bh5 Rxh5#. Always look for checks when the enemy king sits on a file you can open."},
+{n:"21b-3",fen:"r3r2k/p6p/4p1p1/1Q1pN3/3Pn2q/2P5/PP4P1/1K1RR3 w - - 0 1",
+ h1:"Black's king (h8) and queen (h4) are both on the h-file. If the h7-pawn disappears, a rook on h1 pins the queen.",
+ h2:"Your knight can take on g6 with check.",
+ line:[["Nxg6+","Knight sacrifice with check! If hxg6, the h-file opens."],["hxg6"],
+  ["Rh1","Rook to the open h-file. The queen is pinned: if it moves off the file, the king is in check."],["Qh5"],
+  ["Rxh5+","You win the queen."]],
+ end:"1.Nxg6+! hxg6 2.Rh1 and the queen is trapped on the h-file. If Black doesn't take the knight, 2.Nxh4 just wins the queen."},
+{n:"21b-3",fen:"r3r2k/p6p/4p1p1/1Q1pN3/3Pn2q/2P5/PP4P1/1K1RR3 b - - 0 1",
+ h1:"White's king (b1) and queen (b5) are both on the b-file. Only the b2-pawn is in between.",
+ h2:"Your knight can take on c3 with check.",
+ line:[["Nxc3+","Knight sacrifice with check! After bxc3 the b-file is open."],["bxc3"],
+  ["Rab8","Pin! White's queen can't leave the b-file because the king is behind it. Black wins the queen for a rook."]],
+ end:"1...Nxc3+! 2.bxc3 Rab8 pins the queen to the king. A king and queen on the same file is a signal: open that file!"},
+{n:"21b-4",fen:"4r2k/R6p/1p4pq/1N1Q1b2/1P1p4/5P2/P4PRb/7K w - - 0 1",
+ h1:"Danger! Black's queen and bishop are lined up on the h-file at your king, threatening a discovered check. Open the h-file for yourself first.",
+ h2:"Your rook on a7 can capture on h7 with check.",
+ line:[["Rxh7+","Rook sacrifice with check! If Kxh7, then Qf7+ wins the rook on e8."],["Qxh7"],
+  ["Rxh2","Now Black's queen is pinned on the h-file (king on h8 behind it), and the dangerous bishop is gone."]],
+ end:"1.Rxh7+! Qxh7 2.Rxh2. Every other move lets Black attack your king. Here opening the file is a defence, and the game ends level. Saving a dangerous position is a great result!"},
+{n:"21b-5",fen:"1kr5/p1p4p/PpQ1Np2/1Pn1b2q/1NB5/2n4P/3r2P1/R4R1K w - - 0 1",
+ h1:"Your pawn on a6 and rook on a1 point at Black's king. If the a-file opens, the rook can mate on a7.",
+ h2:"Your queen can go to b7 with check.",
+ line:[["Qb7+","Queen sacrifice! Black has to take with the knight."],["Nxb7"],
+  ["Nc6+","Knight check! The king must go to a8."],["Ka8"],
+  ["axb7+","The pawn takes with check and leaves the a-file."],["Kxb7"],
+  ["Rxa7#","Checkmate down the open a-file!"]],
+ end:"1.Qb7+! Nxb7 2.Nc6+ Ka8 3.axb7+ Kxb7 4.Rxa7#. The queen and the pawn both gave themselves up to open the a-file."},
+{n:"21b-5",fen:"1kr5/p1p4p/PpQ1Np2/1Pn1b2q/1NB5/2n4P/3r2P1/R4R1K b - - 0 1",
+ h1:"White's king is on h1. Your queen on h5 is staring down the h-file at the h3-pawn.",
+ h2:"Your queen can capture on h3 with check.",
+ line:[["Qxh3+","Queen sacrifice! After gxh3 both the g-file and h-file are open."],["gxh3"],
+  ["Rh2+","Rook check on the h-file."],["Kg1"],
+  ["Rg8+","Your other rook joins on the open g-file."],["Ng5"],
+  ["Rxg5+","Take the knight that blocked."],["Qg2"],
+  ["Rgxg2#","Checkmate! Two rooks on two open files."]],
+ end:"1...Qxh3+! 2.gxh3 Rh2+ 3.Kg1 Rg8+ 4.Ng5 Rxg5+ 5.Qg2 Rgxg2#."},
+{n:"21b-6",fen:"2r1q2k/3br1pp/2p2b2/1pR4Q/pP1PpNPP/P3P3/B4PK1/4R3 w - - 0 1",
+ h1:"The bishop on f6 is the only defender near Black's king. Kick it with a pawn and the g-file starts to open.",
+ h2:"Push the g-pawn.",
+ line:[["g5","The pawn attacks the bishop. If it runs (Bxd4), g6! smashes the king's cover."],["g6"],
+  ["Nxg6+","Knight sacrifice with check! It forces the queens off."],["Qxg6"],
+  ["Qxg6","Trade queens."],["hxg6"],
+  ["gxf6","You win the bishop and you are a whole piece ahead."]],
+ end:"1.g5! g6 2.Nxg6+ Qxg6 3.Qxg6 hxg6 4.gxf6. A pawn push can open a file too, by chasing away the defender."},
+{n:"21b-7",fen:"1k1rr3/pp4p1/2p5/3pN2Q/1q1Pn3/4P1P1/P6P/R3R2K w - - 0 1",
+ h1:"Black's king (b8) and queen (b4) are on the b-file. The b7-pawn is in between, and c6 protects it.",
+ h2:"Your knight can take on c6 with check.",
+ line:[["Nxc6+","Knight sacrifice with check! After bxc6 the b-file is open."],["bxc6"],
+  ["Rab1","Pin! The queen can't leave the b-file because the king is behind it."],["Qb6"],
+  ["Rxb6+","You win the queen for a rook."]],
+ end:"1.Nxc6+! bxc6 2.Rab1 pins and wins the queen. If Black doesn't take the knight, 2.Nxb4 grabs the queen straight away."},
+{n:"21b-7",fen:"1k1rr3/pp4p1/2p5/3pN2Q/1q1Pn3/4P1P1/P6P/R3R2K b - - 0 1",
+ h1:"White's king (h1) and queen (h5) are on the h-file. Only the h2-pawn is in between.",
+ h2:"Your knight can take on g3 with check.",
+ line:[["Nxg3+","Knight sacrifice with check! After hxg3 the h-file is open."],["hxg3"],
+  ["Rh8","Pin! White's queen can't leave the h-file because the king is behind it. You win the queen."]],
+ end:"1...Nxg3+! 2.hxg3 Rh8. This is the same idea as the White puzzle, mirrored on the other side of the board."},
+{n:"21b-8",fen:"8/5pkp/6p1/p1n5/1pPq1N2/r2p2P1/P2Q1PKP/4R3 w - - 0 1",
+ h1:"The g6-pawn shields Black's king. Lure it away and your queen can come in down the g-file.",
+ h2:"Your knight can go to h5 with check.",
+ line:[["Nh5+","Knight sacrifice with check! After gxh5 the g-file is open."],["gxh5"],
+  ["Qg5+","Your queen arrives on the open g-file."],["Kf8"],
+  ["Qh6+","Keep checking."],["Qg7"],
+  ["Qd6+","Swing over to the other side."],["Kg8"],
+  ["Re8+","Your rook joins on the open e-file."],["Qf8"],
+  ["Qxf8#","Checkmate!"]],
+ end:"1.Nh5+! gxh5 2.Qg5+ Kf8 3.Qh6+ Qg7 4.Qd6+ Kg8 5.Re8+ Qf8 6.Qxf8#. Every move was a check, so Black never had time to fight back."},
+{n:"21b-9",fen:"r3rn1k/3bb2p/p3pp2/qp1p4/3P4/2N1PNB1/PPQ2P1P/2KR2R1 w - - 0 1",
+ h1:"Your rook on g1 is hidden behind your own bishop on g3. If the bishop moves with a threat, the rook gets the g-file.",
+ h2:"First, jump the knight from f3 toward f7.",
+ line:[["Ne5","The knight heads for f7. If fxe5, Bxe5+ opens the g-file with check."],["Rec8"],
+  ["Nf7+","Check! The king has to step onto the g-file."],["Kg7"],
+  ["Bc7+","Discovered check! The bishop leaves the g-file so your rook gives check, and the bishop attacks the queen."],["Kxf7"],
+  ["Bxa5","You win the queen."]],
+ end:"1.Ne5! Rec8 2.Nf7+ Kg7 3.Bc7+! is a discovered check on the g-file, and 4.Bxa5 wins the queen."},
+{n:"21b-10",fen:"1k1r4/1pp1qnp1/5p2/4b3/1N4Q1/2P4P/5PP1/4RBK1 w - - 0 1",
+ h1:"Black's king is on b8. Open the b-file and your rook on e1 can swing over to b1.",
+ h2:"Your knight can go to c6 with check.",
+ line:[["Nc6+","Knight sacrifice with check! After bxc6 the b-file is open."],["bxc6"],
+  ["Rb1+","Rook check down the open b-file! Black can only block with the queen."],["Qb4"],
+  ["Rxb4+","You win the queen, and checkmate is coming soon."]],
+ end:"1.Nc6+! bxc6 2.Rb1+ Qb4 3.Rxb4+. White mates a few moves later."},
+{n:"21b-10",fen:"1k1r4/1pp1qnp1/5p2/4b3/1N4Q1/2P4P/5PP1/4RBK1 b - - 0 1",
+ h1:"Your queen on e7 and White's rook on e1 are on the same file, but your own bishop on e5 is in the way.",
+ h2:"Move the bishop with check.",
+ line:[["Bh2+","Check! The bishop moves off the e-file, so your queen now attacks the rook on e1."],["Kxh2"],
+  ["Qxe1","You win a whole rook."]],
+ end:"1...Bh2+! 2.Kxh2 Qxe1. Moving your own piece out of the way can open a file too."}
+];
+const ALTS={"3-2":["Qd7","Ka1","Qa6"],"4-1":["Reb8"],"8-0":["Rh1"],"9-1":["Reb1"],"9-2":["Qf7","Qg6"],"11-2":["Qe7+"],"13-2":["Qxb4+"]};
+const GLYPH={k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"};
+const $=id=>document.getElementById(id);
+let cur=0,game,step,sel=null,last=null,hintLevel=0,hintsUsed=0,usedShow=false,mistakes=0,done=false,busy=false,history=[];
+let stars={};try{stars=JSON.parse(localStorage.getItem("lucas-21b")||"{}")}catch(e){}
+function saveStars(){try{localStorage.setItem("lucas-21b",JSON.stringify(stars))}catch(e){}}
+function sideOf(p){return p.fen.split(" ")[1]}
+function renderPicker(){
+  $("picker").innerHTML=P.map((p,i)=>{const s=stars[i]||0;
+    return `<button class="pk" type="button" data-i="${i}" aria-current="${i===cur}"><span class="side ${sideOf(p)}" aria-hidden="true"></span>${p.n.replace("21b-","#")}<span class="st" aria-label="${s} stars">${"★".repeat(s)}${"☆".repeat(3-s)}</span></button>`}).join("");
+  $("picker").querySelectorAll(".pk").forEach(b=>b.onclick=()=>load(+b.dataset.i));
+  const total=Object.values(stars).reduce((a,b)=>a+b,0);
+  $("score").textContent=`Stars: ${total} / ${P.length*3}`;
+}
+function squares(){const f="abcdefgh",flip=sideOf(P[cur])==="b",out=[];
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){const rr=flip?r:7-r,cc=flip?7-c:c;out.push(f[cc]+(rr+1))}return out}
+function renderBoard(hintSq){
+  const flip=sideOf(P[cur])==="b";let targets=[];
+  if(sel)targets=game.moves({square:sel,verbose:true});
+  $("board").innerHTML=squares().map((s,i)=>{
+    const fi="abcdefgh".indexOf(s[0]),ri=+s[1]-1,light=(fi+ri)%2===1,pc=game.get(s);
+    const t=targets.find(m=>m.to===s);
+    const cls=["sq",light?"l":"d",sel===s?"sel":"",last&&(last.from===s||last.to===s)?"last":"",t?"tgt":"",t&&pc?"cap":"",hintSq===s?"hintsq":""].join(" ");
+    const col=i%8,row=Math.floor(i/8);
+    const rk=col===0?`<span class="rk">${s[1]}</span>`:"",fl=row===7?`<span class="fl">${s[0]}</span>`:"";
+    const name=pc?`${pc.color==="w"?"White":"Black"} ${({k:"king",q:"queen",r:"rook",b:"bishop",n:"knight",p:"pawn"})[pc.type]} on ${s}`:s;
+    return `<button type="button" class="${cls}" data-s="${s}" aria-label="${name}">${rk}${fl}${pc?`<span class="pc ${pc.color}">${GLYPH[pc.type]}︎</span>`:""}</button>`}).join("");
+  $("board").querySelectorAll(".sq").forEach(b=>b.onclick=()=>tap(b.dataset.s));
+  const side=game.turn()==="w"?"White":"Black";
+  if(game.in_checkmate()){$("tomove").textContent="Checkmate!";return}
+  $("tomove").innerHTML=`<span class="side" style="background:${game.turn()==="w"?"#fff":"#222"}"></span>${side} to move`;
+}
+function say(html,kind){$("msg").className="msg "+(kind||"");$("msg").innerHTML=html}
+function renderMoves(){
+  let start=sideOf(P[cur])==="b";let n=1,out=[];
+  history.forEach((m,i)=>{const white=(i+(start?1:0))%2===0;
+    let pre=white?`${n}.`:(i===0?`${n}...`:"");if(!white)n++;
+    out.push(`${pre}<span class="${m.u?"u":""}">${m.san}</span>`)});
+  $("moves").innerHTML=out.join(" ");
+}
+function load(i){
+  cur=i;game=new Chess(P[i].fen);step=0;sel=null;last=null;hintLevel=0;hintsUsed=0;usedShow=false;mistakes=0;done=false;busy=false;history=[];
+  const p=P[i],me=sideOf(p)==="w"?"White":"Black";
+  $("eyebrow").textContent=`Puzzle ${p.n} · ${me} to move`;
+  $("title").textContent=`Find the best move for ${me}`;
+  say(`Lucas, you are playing <b>${me}</b>. Look for checks and captures that open a file. Which file would you like to open?`);
+  $("hintBtn").disabled=false;$("showBtn").disabled=false;
+  renderPicker();renderBoard();renderMoves();
+}
+function expected(){return P[cur].line[step]}
+function tap(s){
+  if(done||busy)return;
+  const pc=game.get(s);
+  if(sel){
+    const mv=game.moves({square:sel,verbose:true}).find(m=>m.to===s);
+    if(mv){tryMove(mv);return}
+  }
+  sel=(pc&&pc.color===game.turn())?(sel===s?null:s):null;renderBoard();
+}
+function tryMove(mv){
+  sel=null;
+  const want=expected()[0];
+  const m=game.move({from:mv.from,to:mv.to,promotion:"q"});
+  const mate=game.in_checkmate();
+  if(m.san===want||mate){
+    last=m;history.push({san:m.san,u:true});step++;hintLevel=0;
+    renderBoard();renderMoves();
+    say(`<b class="mv">${m.san}</b> ${m.san!==want?"Checkmate! That works too.":P[cur].line[step-1][1]}`,"good");
+    if(step>=P[cur].line.length||mate){finish();return}
+    busy=true;setTimeout(reply,850);
+  }else{
+    game.undo();mistakes++;
+    const alts=ALTS[cur+"-"+(step/2)]||[];
+    if(alts.includes(m.san))say(`<b class="mv">${m.san}</b> is a good move too! But there's a move that fits our file-opening idea even better. Try again.`,"hint");
+    else say(`<b class="mv">${m.san}</b> isn't it. ${mistakes>=2?"Try pressing <b>Hint</b>.":"Look for a check or a capture. Try again!"}`,"bad");
+    renderBoard();
+  }
+}
+function reply(){
+  const r=game.move(expected()[0]);last=r;history.push({san:r.san,u:false});step++;busy=false;
+  renderBoard();renderMoves();
+  const prev=$("msg").innerHTML;
+  say(prev+`<br>Opponent plays <b class="mv">${r.san}</b>. Your move!`,"good");
+  if(step>=P[cur].line.length)finish();
+}
+function finish(){
+  done=true;
+  const s=usedShow?0:Math.max(1,3-mistakes-(hintsUsed>=2?1:0));
+  stars[cur]=Math.max(stars[cur]||0,s);
+  saveStars();renderPicker();
+  say(`${$("msg").innerHTML}<br><br>🎉 <b>Solved!</b> ${P[cur].end}`,"good");
+  $("hintBtn").disabled=true;$("showBtn").disabled=true;
+}
+$("hintBtn").onclick=()=>{
+  if(done||busy)return;
+  hintLevel++;hintsUsed++;
+  const p=P[cur],want=expected()[0];
+  const mv=new Chess(game.fen()).move(want);
+  if(step===0&&hintLevel===1){say(`💡 ${p.h1}`,"hint");renderBoard()}
+  else if(step===0&&hintLevel===2){say(`💡 ${p.h2}`,"hint");renderBoard(mv.from)}
+  else{say(`💡 Move the piece on <b>${mv.from}</b>.`,"hint");renderBoard(mv.from)}
+};
+$("showBtn").onclick=()=>{
+  if(done||busy)return;usedShow=true;
+  const want=expected()[0];const mv=new Chess(game.fen()).move(want);
+  say(`The move is <b class="mv">${want}</b>. Play it on the board: ${mv.from} → ${mv.to}.`,"hint");
+  sel=mv.from;renderBoard(mv.to);
+};
+$("resetBtn").onclick=()=>load(cur);
+$("nextBtn").onclick=()=>load((cur+1)%P.length);
+load(0);
+</script>
